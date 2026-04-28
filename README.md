@@ -121,7 +121,7 @@ hipaa-aws-checker/
 
 ## 👨‍💻 Author
 
-**Mark Schwinn** — Cloud Security | Healthcare IT | AWS | CySA+ | SC-200
+**Mark Schwinn** — Cloud Security | Healthcare IT | AWS | Security+ | IAM
 
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-blue)](https://linkedin.com/in/mark-schwinn-994625362)
 [![GitHub](https://img.shields.io/badge/GitHub-markthedev12-black)](https://github.com/markthedev12)
