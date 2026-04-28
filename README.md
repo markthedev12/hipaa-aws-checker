@@ -1,1 +1,0 @@
-# hipaa-aws-checker
