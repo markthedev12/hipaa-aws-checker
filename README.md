@@ -1,4 +1,4 @@
-# 🏥 HIPAA AWS Security Compliance Checker
+# 🏥 HIPAA AWS Security Compliance Checker (WORK IN PROGRESS)
 
 A Python-based CLI tool that audits AWS configurations against **HIPAA Security Rule** requirements — helping healthcare organizations identify misconfigurations that could expose Protected Health Information (PHI).
 
