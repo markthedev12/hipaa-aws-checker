@@ -1,21 +1,21 @@
-# 🏥 HIPAA AWS Security Compliance Checker 
+# 🏥 HIPAA AWS Security Compliance Checker
 
 A Python-based CLI tool that audits AWS configurations against **HIPAA Security Rule** requirements — helping healthcare organizations identify misconfigurations that could expose Protected Health Information (PHI).
+
+Supports both **live AWS mode** (via boto3) and **demo mode** (simulated data, no credentials needed).
 
 ---
 
 ## 🔍 What It Checks
 
-| Category | Controls |
-|----------|----------|
-| **S3 Buckets** | Encryption at rest, public access blocking, access logging |
-| **IAM** | Root MFA, user MFA enforcement, password policy strength |
-| **CloudTrail** | Multi-region logging, log file validation |
-| **RDS Databases** | Encryption at rest, backup retention >= 7 days |
-| **VPC / Network** | Flow logs enabled, default security group lockdown |
-| **Monitoring** | GuardDuty threat detection, AWS Config change tracking |
-
-Each check maps directly to a **HIPAA Security Rule citation** (45 CFR Part 164).
+| Category | Controls | HIPAA Citation |
+| --- | --- | --- |
+| **S3 Buckets** | Encryption at rest, public access blocking, access logging | §164.312(a)(2)(iv), §164.312(b) |
+| **IAM** | Root MFA, user MFA enforcement, password policy strength | §164.312(d), §164.308(a)(5) |
+| **CloudTrail** | Multi-region logging, log file validation | §164.312(b), §164.312(c)(1) |
+| **RDS Databases** | Encryption at rest, backup retention >= 7 days | §164.312(a)(2)(iv), §164.308(a)(7) |
+| **VPC / Network** | Flow logs enabled, default security group lockdown | §164.312(e)(1), §164.312(a)(1) |
+| **Monitoring** | GuardDuty threat detection, AWS Config change tracking | §164.308(a)(1)(ii)(D) |
 
 ---
 
@@ -30,7 +30,36 @@ cd hipaa-aws-checker
 pip install -r requirements.txt
 
 # Run in demo mode (no AWS credentials needed)
-python checker.py
+python aws_checker.py --demo
+
+# Run against a real AWS account (requires configured credentials)
+python aws_checker.py
+```
+
+---
+
+## 🔐 AWS Credentials Setup (Live Mode)
+
+This tool uses **read-only AWS permissions only**. Never run security audits with root credentials.
+
+**Step 1 — Create a read-only IAM policy:**
+
+Attach the following AWS managed policies to your audit user or role:
+- `SecurityAudit` (AWS managed)
+- `ReadOnlyAccess` (AWS managed)
+
+**Step 2 — Configure the AWS CLI:**
+
+```bash
+pip install awscli
+aws configure
+# Enter your Access Key ID, Secret Access Key, and region
+```
+
+**Step 3 — Run the checker:**
+
+```bash
+python aws_checker.py
 ```
 
 ---
@@ -64,50 +93,38 @@ A full `hipaa_report.json` is saved after every run.
 
 ---
 
-## 🔧 Extending to Real AWS (boto3)
-
-This tool runs in **demo mode** by default using simulated config data.
-
-To connect to a real AWS account:
-
-1. Install and configure the AWS CLI:
-```bash
-pip install boto3 awscli
-aws configure
-```
-
-2. Replace the `SIMULATED_AWS_CONFIG` block in `checker.py` with live boto3 calls:
-```python
-import boto3
-
-s3 = boto3.client('s3')
-buckets = s3.list_buckets()['Buckets']
-```
-
-> ⚠️ Always use a **read-only IAM role** when running security audits. Never use root credentials.
-
----
-
 ## 📁 Project Structure
 
 ```
 hipaa-aws-checker/
-├── checker.py          # Main compliance checker
+├── aws_checker.py      # Main compliance checker (demo + live boto3 mode)
 ├── hipaa_report.json   # Auto-generated report (after run)
-├── requirements.txt    # Dependencies
+├── requirements.txt    # Python dependencies
 └── README.md
 ```
 
 ---
 
+## 🔧 Security Design
+
+This tool was designed with security-first principles:
+
+- **Read-only by design** — only AWS read permissions are required; the tool never modifies resources
+- **No credentials in code** — relies on AWS CLI profile or IAM role, never hardcoded keys
+- **Least privilege** — the minimum IAM permissions needed are `SecurityAudit` and `ReadOnlyAccess`
+- **Local output only** — reports are saved locally as JSON; no data is transmitted externally
+
+---
+
 ## 🗺️ Roadmap
 
-- [ ] Live boto3 AWS integration
+- [x] Demo mode with simulated AWS config
+- [x] Live boto3 AWS integration
 - [ ] HTML report export
 - [ ] Email alerting for critical failures
 - [ ] Scheduled Lambda deployment
 - [ ] CIS AWS Foundations Benchmark mapping
-- [ ] Azure / SC-200 version (coming soon)
+- [ ] Azure / SC-200 version
 
 ---
 
@@ -121,7 +138,7 @@ hipaa-aws-checker/
 
 ## 👨‍💻 Author
 
-**Mark Schwinn** — Cloud Security | Healthcare IT | AWS | Security+ | IAM
+**Mark Schwinn** — Cloud Security | Healthcare IT | AWS | CompTIA Security+
 
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-blue)](https://linkedin.com/in/mark-schwinn-994625362)
 [![GitHub](https://img.shields.io/badge/GitHub-markthedev12-black)](https://github.com/markthedev12)
