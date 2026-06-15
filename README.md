@@ -1,15 +1,17 @@
 # 🏥 HIPAA AWS Security Compliance Checker
 
-A Python-based CLI tool that audits AWS configurations against **HIPAA Security Rule** requirements — helping healthcare organizations identify misconfigurations that could expose Protected Health Information (PHI).
+A Python-based CLI tool that audits AWS configurations against **HIPAA Security Rule** requirements helping healthcare organizations identify misconfigurations that could expose Protected Health Information (PHI).
 
 Supports both **live AWS mode** (via boto3) and **demo mode** (simulated data, no credentials needed).
+
+Built by an IAM engineer working in a live HIPAA-regulated clinical environment. Every check maps to a real compliance requirement enforced in production healthcare systems.
 
 ---
 
 ## 🔍 What It Checks
 
 | Category | Controls | HIPAA Citation |
-| --- | --- | --- |
+|---|---|---|
 | **S3 Buckets** | Encryption at rest, public access blocking, access logging | §164.312(a)(2)(iv), §164.312(b) |
 | **IAM** | Root MFA, user MFA enforcement, password policy strength | §164.312(d), §164.308(a)(5) |
 | **CloudTrail** | Multi-region logging, log file validation | §164.312(b), §164.312(c)(1) |
@@ -69,12 +71,12 @@ python aws_checker.py
 ```
 ============================================================
   HIPAA AWS COMPLIANCE REPORT
-  Generated: 2026-04-27 21:00 UTC
+  Generated: 2026-06-15 02:18 UTC
 ============================================================
-  Score:             52%
-  Total Checks:      16
-  Passed:            8
-  Failed:            8
+  Score:             41%
+  Total Checks:      22
+  Passed:            9
+  Failed:            13
   Critical Failures: 4
 ============================================================
 
@@ -90,6 +92,17 @@ python aws_checker.py
 ```
 
 A full `hipaa_report.json` is saved after every run.
+
+---
+
+## 📸 Demo Screenshots
+
+### Compliance Summary
+![HIPAA Compliance Summary](screenshot/Demo-summary.png)
+
+### Detailed Check Results
+![Check Results Part 1](screenshot/demo-check%201.png)
+![Check Results Part 2](screenshot/demo-check%202.png)
 
 ---
 
@@ -138,7 +151,8 @@ This tool was designed with security-first principles:
 
 ## 👨‍💻 Author
 
-**Mark Schwinn** — Cloud Security | Healthcare IT | AWS | CompTIA Security+
+**Mark Schwinn** — IAM & Microsoft Security Engineer | Healthcare IT | AWS | CompTIA Security+
 
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-blue)](https://linkedin.com/in/mark-schwinn-994625362)
 [![GitHub](https://img.shields.io/badge/GitHub-markthedev12-black)](https://github.com/markthedev12)
+[![Website](https://img.shields.io/badge/Website-markschwinn.com-lightgrey)](https://markschwinn.com)
