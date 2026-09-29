@@ -1,5 +1,7 @@
 # HIPAA AWS Security Checker
 
+![CI](https://github.com/markthedev12/hipaa-aws-checker/actions/workflows/ci.yml/badge.svg)
+
 Python CLI that audits an AWS account for security misconfigurations and maps every finding to the HIPAA Security Rule requirement it relates to.
 
 Runs in **demo mode** with simulated data (no AWS account needed) or **live mode** against a real account through boto3.
