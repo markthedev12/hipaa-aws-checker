@@ -16,6 +16,7 @@ Security Design:
 Author: Mark Schwinn | github.com/markthedev12
 """
 
+import argparse
 import json
 import sys
 import datetime
@@ -73,7 +74,7 @@ def collect_live_aws_config():
     except ImportError:
         print("[ERROR] boto3 is not installed. Run: pip install boto3")
         print("        Or use demo mode: python aws_checker.py --demo")
-        sys.exit(1)
+        raise RuntimeError("boto3 is required for live collection")
 
     print("[*] Connecting to AWS...")
     config = {}
@@ -97,7 +98,7 @@ def collect_live_aws_config():
                 encrypted = True
             except ClientError as e:
                 if e.response["Error"]["Code"] != "ServerSideEncryptionConfigurationNotFoundError":
-                    pass  # Bucket exists but encryption not configured
+                    raise
 
             # Check public access block
             try:
@@ -109,15 +110,17 @@ def collect_live_aws_config():
                     block.get("IgnorePublicAcls") and
                     block.get("RestrictPublicBuckets")
                 )
-            except ClientError:
-                public = True  # No block config = potentially public
+            except ClientError as error:
+                if error.response["Error"]["Code"] not in ("NoSuchPublicAccessBlockConfiguration",):
+                    raise
+                public = True  # Missing bucket-level block settings, not proof of public access
 
             # Check access logging
             try:
                 log = s3.get_bucket_logging(Bucket=name)
                 logging_enabled = "LoggingEnabled" in log
             except ClientError:
-                pass
+                raise
 
             s3_buckets.append({
                 "name": name,
@@ -126,7 +129,7 @@ def collect_live_aws_config():
                 "logging": logging_enabled,
             })
     except (ClientError, NoCredentialsError) as e:
-        print(f"[WARNING] S3 check failed: {e}")
+        raise RuntimeError(f"S3 check failed: {e}") from e
 
     config["s3_buckets"] = s3_buckets
 
@@ -156,11 +159,12 @@ def collect_live_aws_config():
             pp = iam.get_account_password_policy()["PasswordPolicy"]
             iam_config["password_policy"]["min_length"] = pp.get("MinimumPasswordLength", 0)
             iam_config["password_policy"]["require_symbols"] = pp.get("RequireSymbols", False)
-        except ClientError:
-            pass  # No password policy set
+        except ClientError as error:
+            if error.response["Error"]["Code"] != "NoSuchEntity":
+                raise
 
     except (ClientError, NoCredentialsError) as e:
-        print(f"[WARNING] IAM check failed: {e}")
+        raise RuntimeError(f"IAM check failed: {e}") from e
 
     config["iam"] = iam_config
 
@@ -172,14 +176,16 @@ def collect_live_aws_config():
     try:
         trails = ct_client.describe_trails(includeShadowTrails=False)["trailList"]
         if trails:
-            ct_config["enabled"] = True
             for trail in trails:
+                if not ct_client.get_trail_status(Name=trail["TrailARN"]).get("IsLogging"):
+                    continue
+                ct_config["enabled"] = True
                 if trail.get("IsMultiRegionTrail"):
                     ct_config["multi_region"] = True
                 if trail.get("LogFileValidationEnabled"):
                     ct_config["log_validation"] = True
     except (ClientError, NoCredentialsError) as e:
-        print(f"[WARNING] CloudTrail check failed: {e}")
+        raise RuntimeError(f"CloudTrail check failed: {e}") from e
 
     config["cloudtrail"] = ct_config
 
@@ -197,7 +203,7 @@ def collect_live_aws_config():
                 "backup_retention": db.get("BackupRetentionPeriod", 0),
             })
     except (ClientError, NoCredentialsError) as e:
-        print(f"[WARNING] RDS check failed: {e}")
+        raise RuntimeError(f"RDS check failed: {e}") from e
 
     config["rds"] = rds_list
 
@@ -220,7 +226,7 @@ def collect_live_aws_config():
                 vpc_config["default_sg_open"] = True
                 break
     except (ClientError, NoCredentialsError) as e:
-        print(f"[WARNING] VPC check failed: {e}")
+        raise RuntimeError(f"VPC check failed: {e}") from e
 
     config["vpc"] = vpc_config
 
@@ -235,7 +241,7 @@ def collect_live_aws_config():
             detector = gd.get_detector(DetectorId=detectors[0])
             gd_config["enabled"] = detector.get("Status") == "ENABLED"
     except (ClientError, NoCredentialsError) as e:
-        print(f"[WARNING] GuardDuty check failed: {e}")
+        raise RuntimeError(f"GuardDuty check failed: {e}") from e
 
     config["guardduty"] = gd_config
 
@@ -250,7 +256,7 @@ def collect_live_aws_config():
         if recorders and status and status[0].get("recording"):
             cfg_config["enabled"] = True
     except (ClientError, NoCredentialsError) as e:
-        print(f"[WARNING] AWS Config check failed: {e}")
+        raise RuntimeError(f"AWS Config check failed: {e}") from e
 
     config["config_service"] = cfg_config
 
@@ -312,9 +318,9 @@ def check_iam(config):
     policy = iam["password_policy"]
     weak = policy["min_length"] < 12 or not policy["require_symbols"]
     add("HIPAA-IAM-03", "§164.308(a)(5)(ii)(D) Password Management",
-        "IAM password policy must meet HIPAA complexity requirements",
+        "IAM password policy must meet this lab's complexity baseline",
         not weak, "MEDIUM",
-        "Set minimum length >= 12, require symbols, rotate every 90 days",
+        "Review the lab baseline: minimum length >= 12 and symbols; use your approved password policy",
         "iam::password-policy")
 
 def check_cloudtrail(config):
@@ -371,6 +377,7 @@ def check_monitoring(config):
         "aws-config")
 
 def run_all(config):
+    results.clear()
     check_s3(config)
     check_iam(config)
     check_cloudtrail(config)
@@ -383,7 +390,7 @@ def run_all(config):
 # REPORT OUTPUT
 # ──────────────────────────────────────────────────────────────
 
-def print_report():
+def print_report(mode="demo", output_path="hipaa_report.json"):
     total    = len(results)
     passed   = sum(1 for r in results if r["status"] == "PASS")
     failed   = sum(1 for r in results if r["status"] == "FAIL")
@@ -392,7 +399,7 @@ def print_report():
 
     print("\n" + "=" * 60)
     print("  HIPAA AWS COMPLIANCE REPORT")
-    print(f"  Generated: {datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}")
+    print(f"  Generated: {datetime.datetime.now(datetime.UTC).strftime('%Y-%m-%d %H:%M UTC')}")
     print("=" * 60)
     print(f"  Score:             {score}%")
     print(f"  Total Checks:      {total}")
@@ -415,8 +422,8 @@ def print_report():
     print("\n" + "=" * 60)
 
     report = {
-        "generated_at": datetime.datetime.utcnow().isoformat(),
-        "mode": "demo" if "--demo" in sys.argv else "live",
+        "generated_at": datetime.datetime.now(datetime.UTC).isoformat(),
+        "mode": mode,
         "summary": {
             "score": score, "total": total,
             "passed": passed, "failed": failed,
@@ -425,10 +432,10 @@ def print_report():
         "checks": results,
     }
 
-    with open("hipaa_report.json", "w") as f:
+    with open(output_path, "w", encoding="utf-8") as f:
         json.dump(report, f, indent=2)
 
-    print("  Full report saved to: hipaa_report.json")
+    print(f"  Full report saved to: {output_path}")
     print("=" * 60 + "\n")
 
 
@@ -436,17 +443,21 @@ def print_report():
 # ENTRY POINT
 # ──────────────────────────────────────────────────────────────
 
-if __name__ == "__main__":
-    demo_mode = "--demo" in sys.argv
-
-    if demo_mode:
-        print("[*] Running in DEMO MODE — using simulated AWS config data.")
-        print("[*] To audit a real AWS account run: python aws_checker.py\n")
+def main(argv=None):
+    parser = argparse.ArgumentParser(description="Educational AWS configuration checks")
+    parser.add_argument("--demo", action="store_true", help="use fictional fixtures; no AWS access")
+    parser.add_argument("--output", default="hipaa_report.json")
+    args = parser.parse_args(argv)
+    if args.demo:
         config = SIMULATED_AWS_CONFIG
     else:
-        print("[*] Running in LIVE MODE — connecting to AWS...")
-        print("[*] Ensure your AWS CLI is configured and you have read-only permissions.\n")
-        config = collect_live_aws_config()
-
+        try:
+            config = collect_live_aws_config()
+        except Exception as error:
+            parser.exit(2, f"Collection incomplete; no new report written: {error}\n")
     run_all(config)
-    print_report()
+    print_report("demo" if args.demo else "live", args.output)
+    return 0
+
+if __name__ == "__main__":
+    raise SystemExit(main())
